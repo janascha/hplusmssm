@@ -1,0 +1,30 @@
+#----------------------------#
+# Hplus MSSM Interface Setup #
+#----------------------------#
+model 0 mhmaxup
+model 0 mhmodp
+model 1 mhmodm
+model 0 tauphobic
+model 0 lightstau
+model 0 lightstop
+model 0 lightstop-up
+model 0 tauphobic
+#------------------------------
+BR 0 tb
+BR 1 taunu
+BR 0 cs
+BR 0 susy
+BR 0 cb
+BR 0 ts
+BR 0 munu
+BR 0 enu
+BR 0 cd
+BR 0 ub
+BR 0 us
+BR 0 ud
+BR 0 hW
+BR 0 HW
+BR 0 AW
+#------------------------------
+lhc_energy 8 TeV    # 8 or 13
+#------------------------------
