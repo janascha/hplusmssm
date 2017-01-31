@@ -20,7 +20,7 @@ int main()
 	
  cout<<endl;
  cout<<"-------------------------"<<endl;
- cout<<"Hplus MSSM interface v0.5"<<endl;
+ cout<<"Hplus MSSM interface v0.61"<<endl;
  cout<<"-------------------------"<<endl;
  cout<<endl;
  
