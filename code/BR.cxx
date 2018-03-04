@@ -33,7 +33,7 @@ int BR::get_size()
 double BR::get_val(int index)
 {
  double thisval=-1.0;
- if(index<val.size())
+ if(index<(int)val.size())
   thisval=val[index];	
  else
   cout<<"   Problem: BR array for "<<m_name<<" out of range."<<endl;

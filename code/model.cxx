@@ -8,6 +8,16 @@
 
 #include "model.h"
 
+model::model(string name, vector<string> BR_list)
+{
+ 
+ m_name=name;
+ 
+ for(unsigned int b=0;b<BR_list.size();b++)
+  m_BR_list.push_back(BR_list[b]);
+ 
+}
+
 string model::get_name()
 {
  
@@ -71,7 +81,6 @@ void model::init_deltab()
  
  if(!m_dodeltab) cout<<"### INFO: No delta-b corrections will be applied for "<<m_name<<endl;
  
- 
 }
 
 
@@ -85,7 +94,7 @@ void model::init_BR()
  
  BR_mHp.set_name("mHp");
  BR_tanb.set_name("tanb");
- for(int b=0;b<m_BR_list.size();b++)
+ for(unsigned int b=0;b<m_BR_list.size();b++)
  {
   BR thisBR;
   thisBR.set_name(m_BR_list[b]);
@@ -99,7 +108,7 @@ void model::init_BR()
  BR_mA.set_name("mA");
  allBR.push_back(BR_mA);
 
- for(int f=0;f<filename.size();f++)
+ for(unsigned int f=0;f<filename.size();f++)
  {  
   
   ifstream file(filename[f].c_str());
@@ -132,7 +141,7 @@ void model::init_BR()
    BR_mHp.add_val(M_p);
    BR_tanb.add_val(tanbeta);
    
-   for(int b=0;b<allBR.size();b++)
+   for(unsigned int b=0;b<allBR.size();b++)
    {
     if(allBR[b].get_name()=="mA")     allBR[b].add_val(M_A);
     if(allBR[b].get_name()=="width")  allBR[b].add_val(totWidth);
@@ -156,20 +165,8 @@ void model::init_BR()
   } // while file
  
  } //for filename
- 
 
 
-}
-
-
-model::model(string name, vector<string> BR_list)
-{
- 
- m_name=name;
- 
- for(int b=0;b<BR_list.size();b++)
-  m_BR_list.push_back(BR_list[b]);
- 
 }
 
 double model::get_topBR(double mass, double tanb)
@@ -194,7 +191,8 @@ double model::get_topBR(double mass, double tanb)
  //cout<<"val_dn "<<val_dn<<" val_up "<<val_up<<endl;
  
  double val=-1;
- if(val_dn>0 && val_up>0) val=linear(tanb_dn,tanb_up,val_dn,val_up,tanb);
+ if(val_dn>0 && val_up>0)
+  val=linear(tanb_dn,tanb_up,val_dn,val_up,tanb);
  
  return val;
  
@@ -206,7 +204,7 @@ double model::get_topBRval(double mass, double tanb)
  vector<double> safe_br;
  vector<double> safe_mass;
  
- for(int i=0;i<topBR_val.size();i++)
+ for(unsigned int i=0;i<topBR_val.size();i++)
  {
   int rounded_BR_tanb=(int)(myround(topBR_tanb[i],1)*10.0);
   int rounded_input=(int)(tanb*10.0);
@@ -235,9 +233,9 @@ double model::get_topBRval(double mass, double tanb)
  vector<int> temp_indices;
  vector<double> temp_mass;
  vector<double> temp_br;
- for(int a=0;a<safe_mass.size();a++)
+ for(unsigned int a=0;a<safe_mass.size();a++)
  {
- 	if(a!=min)
+ 	if((int)a!=min)
  	{
  	 temp_mass.push_back(safe_mass[a]);
  	 temp_br.push_back(safe_br[a]);
@@ -266,7 +264,7 @@ double model::get_topBRval(double mass, double tanb)
  
  if(seems_ok)
  {
-  for(int i=0;i<sorted_mass.size();i++)
+  for(unsigned int i=0;i<sorted_mass.size();i++)
   {
    if(sorted_mass[i]>=mass && i>0)
    {
@@ -290,7 +288,7 @@ double model::get_BR(string name, double mass, double tanb)
 {
 
  int index=-1;
- for(int b=0;b<allBR.size();b++)
+ for(unsigned int b=0;b<allBR.size();b++)
  {
  	if(allBR[b].get_name()==name)
  	 index=b;
@@ -365,9 +363,9 @@ double model::get_BRval(int index, double mass, double tanb)
  vector<int> temp_indices;
  vector<double> temp_mass;
  vector<double> temp_br;
- for(int a=0;a<safe_mass.size();a++)
+ for(unsigned int a=0;a<safe_mass.size();a++)
  {
- 	if(a!=min)
+ 	if((int)a!=min)
  	{
  	 temp_mass.push_back(safe_mass[a]);
  	 temp_br.push_back(safe_br[a]);
@@ -395,7 +393,7 @@ double model::get_BRval(int index, double mass, double tanb)
  }
  if(seems_ok)
  {
-  for(int i=0;i<sorted_mass.size();i++)
+  for(unsigned int i=0;i<sorted_mass.size();i++)
   {
    if(sorted_mass[i]>=mass && i>0)
    {
@@ -477,7 +475,7 @@ int model::get_min(vector<double> vector)
 {
  double min=100000.0;
  int index;
- for(int i=0;i<vector.size();i++)
+ for(unsigned int i=0;i<vector.size();i++)
  {
  	if(vector[i]<min)
  	{
@@ -497,7 +495,7 @@ double model::get_deltab(double tanb)
  double t1,t2,d1,d2;
  
  int found=0;
- for(int i=0;i<deltab_tanb.size();i++)
+ for(unsigned int i=0;i<deltab_tanb.size();i++)
  {
  	if(deltab_tanb[i]>=tanb && i>0)
  	{
@@ -533,7 +531,7 @@ int model::get_maxtanb()
  	if(get_BR("width", mass, (double)t)<0)
  	{
  	 maxtanb=t-1;
- 	 t=61;
+ 	 break;
  	}
  }
  

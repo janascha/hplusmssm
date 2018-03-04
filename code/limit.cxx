@@ -27,7 +27,7 @@ void limit::add_val(double value)
 double limit::get_val(int index)
 {
  double thisval=-1.0;
- if(index<val.size())
+ if(index<(int)val.size())
   thisval=val[index];	
  else
   cout<<"### PROBLEM: Limit val array for "<<m_name<<" out of range. ###"<<endl;
@@ -52,7 +52,7 @@ void limit::add_dn(double value)
 double limit::get_mass(int index)
 {
  double thisval=-1.0;
- if(index<mass.size())
+ if(index<(int)mass.size())
   thisval=mass[index];	
  else
   cout<<"### PROBLEM: Limit mass array for "<<m_name<<" out of range. ###"<<endl;
@@ -62,7 +62,7 @@ double limit::get_mass(int index)
 double limit::get_up(int index)
 {
  double thisval=-1.0;
- if(index<crossings_up.size())
+ if(index<(int)crossings_up.size())
   thisval=crossings_up[index];	
  else
   cout<<"### PROBLEM: Limit crossings_up array for "<<m_name<<" out of range. ###"<<endl;
@@ -72,7 +72,7 @@ double limit::get_up(int index)
 double limit::get_dn(int index)
 {
  double thisval=-1.0;
- if(index<crossings_dn.size())
+ if(index<(int)crossings_dn.size())
   thisval=crossings_dn[index];	
  else
   cout<<"### PROBLEM: Limit crossings_dn array for "<<m_name<<" out of range. ###"<<endl;

@@ -23,15 +23,22 @@ class hplus
  void init();
  void init_xsec();
  void init_model();
+ void init_intermediate();
  
  double get_xsec(double,double);
  double get_width(double,double);
- void simple_output();
- //double round(double,int);
+ void   simple_output();
  double interpolate_quad(double,double,double,double,double,double,double,double,double,double,double,double,double);
  double get_xsec_raw_exact(double,double);
- 
  double get_xsec_mssm(double,double,int);
+ void   get_crossings(int , int , double , double , double&, double&, string);
+ double linear(double,double,double,double,double);
+ void   draw_exclusions(string,int,int,double,double,double,int);
+ void   a_vs_b();
+ void   vs_mass(string); 
+ void   vs_tanb(string);
+ void   exclusions();
+ bool   fexists(string);
  
  vector<double> xsec_input_mass;
  vector<double> xsec_input_tanb;
@@ -48,20 +55,10 @@ class hplus
  
  vector<double> BR_topHplus;
  
- void a_vs_b();
- void vs_mass(string); 
- void vs_tanb(string);
- 
- int exclusions();
- bool fexists(string);
- 
  vector<limit> mylimit;
  
- void get_crossings(int , int , double , double , double&, double&, string);
- double linear(double,double,double,double,double);
- void draw_exclusions(string,int,int,double,double,double,int);
- 
  int m_debug;
+ int m_inter_scaling;
  
 };
 

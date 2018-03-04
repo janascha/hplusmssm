@@ -33,7 +33,7 @@ void hplus::run()
   if(choice==0) break;
   if(choice==1) simple_output();
   if(choice==2) a_vs_b();
-  if(choice==3) int a=exclusions();
+  if(choice==3) exclusions();
  }
  
 }
@@ -44,7 +44,15 @@ void hplus::init()
  m_debug=0;	
   
  ifstream file("setup.txt");
+ if(!file)
+ {
+  cout<<"setup.txt not found. Exiting.";
+  exit(1);
+ }
+ 
  string line;
+ m_inter_scaling=0;
+ energy="13";
  
  while(getline(file, line))
  {
@@ -53,24 +61,196 @@ void hplus::init()
   string word1,word2,word3;
   linestream >> word1 >> word2 >> word3;
   
-  if(word1=="lhc_energy")
-   energy=word2;
-  
   if(word1=="model" && word2=="1")
    model_list.push_back(word3);
 
   if(word1=="BR" && word2=="1")
    BR_list.push_back(word3);
 
+  if(word1=="lhc_energy" && word2=="8")
+   energy="8";
+  
+  if(word1=="Scale_Intermediate" && word2=="1")
+   m_inter_scaling=1;
+  
  } // while file
  
  cout<<" -> LHC energy "<<energy<<" TeV"<<endl;
- for(int m=0;m<model_list.size();m++)
+ cout<<" -> Scale_Intermediate "<<m_inter_scaling<<endl;
+ for(unsigned int m=0;m<model_list.size();m++)
   cout<<" -> use model "<<model_list[m]<<endl;
- for(int m=0;m<BR_list.size();m++)
+ for(unsigned int m=0;m<BR_list.size();m++)
   cout<<" -> use BR "<<BR_list[m]<<endl;
-  
+ 
 }
+
+void hplus::init_intermediate()
+{
+ 
+ if(energy!="13")
+ {
+  cout<<"Intermediate mass range only available for 13 TeV."<<endl;
+  return;
+ }
+ 
+ vector<double> t_grid;
+ for(unsigned int t=1;t<10;t++)
+ {
+  double val=(double)t*0.1;
+  t_grid.push_back(val);
+ }
+ for(unsigned int t=1;t<=60;t++)
+ {
+  double val=(double)t;
+  t_grid.push_back(val);
+ }
+ 
+ vector<double> m_grid;
+ for(int m=145;m<=200;m+=5)
+ {
+  m_grid.push_back((double)m);
+ }
+ 
+ //prepare the vectors, fill with dummy values
+ vector<double> inter_mass;
+ vector<double> inter_tanb;
+ vector<double> inter_val;
+ vector<double> inter_up;
+ vector<double> inter_dn;
+ 
+ for(unsigned int m=0;m<m_grid.size();m++)
+ {
+  for(unsigned int t=0; t<t_grid.size();t++)
+  {
+   inter_mass.push_back(m_grid[m]);
+   inter_tanb.push_back(t_grid[t]);
+   inter_val.push_back(1);
+   inter_up.push_back(1);
+   inter_dn.push_back(1);
+  }
+ }
+ 
+ for(unsigned int t=0;t<t_grid.size();t++)
+ {
+  ifstream file(Form("../WG3_inputs/cH_145-200/xsect_cH_145-200_tb%.1f.dat",t_grid[t]));
+  if(!file) { cout<<"intermediate inputs for tanb "<<t_grid[t]<<" not found. Exiting."<<endl; exit(1); }
+  string line;
+  while(getline(file, line))
+  {
+   stringstream linestream(line);
+   string mass1,sigma1;
+   linestream >> mass1 >> sigma1;
+   double mass=stod(mass1);
+   double sigma=stod(sigma1);
+   
+   //fill the value in the right column
+   int index=-1;
+   for(unsigned int m=0;m<inter_mass.size();m++)
+   {
+    if((int)inter_mass[m]==(int)mass)
+    {
+     index=m;
+     break;
+    }
+   }
+   inter_val[index+t]=sigma;
+  } //while file
+  
+ } //loop over tanb
+ 
+ //Scale the values such to match the numbers at 200 GeV:
+ if(m_inter_scaling)
+ {
+  //find the values at 200 GeV:
+  int index=-1;
+  for(unsigned int m=0;m<inter_mass.size();m++)
+  {
+   if((int)inter_mass[m]==200)
+   {
+    index=m;
+    break;
+   }
+  }
+
+  for(unsigned int t=0;t<t_grid.size();t++)
+  {
+   double ref_val=get_xsec_raw_exact(200.0,t_grid[t]);
+   double sf=ref_val/inter_val[index+t];
+   if(m_debug) cout<<"tanb="<<t_grid[t]<<" sf "<<sf<<" ref_val "<<ref_val<<" inter_val "<<inter_val[index+t]<<endl;
+   for(unsigned int m=0;m<inter_mass.size();m++)
+   {
+    if((int)(inter_tanb[m]*10.)==(int)(t_grid[t]*10.0))
+     inter_val[m]*=sf;
+   }
+  }
+    
+  //remove the 200 GeV numbers from the nominal vectors:
+  while(1)
+  {
+   int again=0;
+   for(unsigned int i=0;i<xsec_mH.size();i++) 
+   {
+    if((int)xsec_mH[i]==200)
+    {
+     xsec_val.erase(xsec_val.begin()+i);
+     xsec_up.erase(xsec_up.begin()+i);
+     xsec_dn.erase(xsec_dn.begin()+i);
+     xsec_tanb.erase(xsec_tanb.begin()+i);
+     xsec_mH.erase(xsec_mH.begin()+i);
+     again=1;
+     break;
+    }
+   }
+   if(!again) break;
+  }
+ } //if scaling
+ 
+ if(!m_inter_scaling)
+ {
+  //remove the 200 GeV from the intermediate mass range
+  while(1)
+  {
+   int again=0;
+   for(unsigned int i=0;i<inter_mass.size();i++) 
+   {
+    if((int)inter_mass[i]==200)
+    {
+     inter_mass.erase(inter_mass.begin()+i);
+     inter_tanb.erase(inter_tanb.begin()+i);
+     inter_val.erase(inter_val.begin()+i);
+     inter_up.erase(inter_up.begin()+i);
+     inter_dn.erase(inter_dn.begin()+i);
+     again=1;
+     break;
+    }
+   }
+   if(!again) break;
+  }
+ }
+ 
+ //now expand the nominal xsec_val grid with the intermediate numbers:
+ vector<double>::iterator it=xsec_val.begin();
+ xsec_val.insert(it,inter_val.begin(),inter_val.end());
+ 
+ vector<double>::iterator it2=xsec_mH.begin();
+ xsec_mH.insert(it2,inter_mass.begin(),inter_mass.end());
+ 
+ vector<double>::iterator it3=xsec_up.begin();
+ xsec_up.insert(it3,inter_up.begin(),inter_up.end());
+ 
+ vector<double>::iterator it4=xsec_dn.begin();
+ xsec_dn.insert(it4,inter_dn.begin(),inter_dn.end());
+ 
+ vector<double>::iterator it5=xsec_tanb.begin();
+ xsec_tanb.insert(it5,inter_tanb.begin(),inter_tanb.end());
+ 
+ /*
+ for(unsigned int i=0;i<xsec_val.size();i++)
+  cout<<"i "<<i<<" mass "<<xsec_mH[i]<<" tanb "<<xsec_tanb[i]<<" xsec "<<xsec_val[i]<<endl;
+ */
+ 
+}
+
 
 void hplus::init_xsec()
 {
@@ -103,32 +283,34 @@ void hplus::init_xsec()
  {
   for(int m=200;m<=1000;m+=20)
    xsec_input_mass.push_back(m);
-
- for(int t=1;t<=9;t++)
-  xsec_input_tanb.push_back(0.1*t);
- for(int t=1;t<=20;t++)
-  xsec_input_tanb.push_back(t);
- for(int t=25;t<=60;t+=5)
-  xsec_input_tanb.push_back(t);
-
+ 
+  for(int t=1;t<=9;t++)
+   xsec_input_tanb.push_back(0.1*t);
+  for(int t=1;t<=20;t++)
+   xsec_input_tanb.push_back(t);
+  for(int t=25;t<=60;t+=5)
+   xsec_input_tanb.push_back(t);
  }
 
  if(energy=="13")
  {
- for(int m=200;m<=500;m+=20)
-  xsec_input_mass.push_back(m);
+  for(int m=145;m<=195;m+=5)
+   xsec_input_mass.push_back(m);
+
+  for(int m=200;m<=500;m+=20)
+   xsec_input_mass.push_back(m);
   
- for(int m=550;m<=1000;m+=50)
-  xsec_input_mass.push_back(m);
+  for(int m=550;m<=1000;m+=50)
+   xsec_input_mass.push_back(m);
 
- for(int m=1100;m<=2000;m+=100)
-  xsec_input_mass.push_back(m);
+  for(int m=1100;m<=2000;m+=100)
+   xsec_input_mass.push_back(m);
+  
+  for(int t=1;t<=9;t++)
+   xsec_input_tanb.push_back(0.1*t);
 
- for(int t=1;t<=9;t++)
-  xsec_input_tanb.push_back(0.1*t);
- for(int t=1;t<=60;t+=1)
-  xsec_input_tanb.push_back(t);
-
+  for(int t=1;t<=60;t+=1)
+   xsec_input_tanb.push_back(t);
  }
  
  
@@ -138,7 +320,7 @@ void hplus::init_xsec()
 void hplus::init_model()
 {
  
- for(int m=0;m<model_list.size();m++)
+ for(unsigned int m=0;m<model_list.size();m++)
  {
  
   model thismodel(model_list[m],BR_list);
@@ -175,7 +357,7 @@ void hplus::simple_output()
  double xsec_raw=get_xsec(input_mass,input_tanb);
  cout<<"xsec 2HDM [pb]\t"<<xsec_raw<<endl; 
  
- for(int m=0;m<mymodel.size();m++)
+ for(unsigned int m=0;m<mymodel.size();m++)
  {
   cout<<endl;
  	cout<<"Model "<<mymodel[m].get_name()<<":"<<endl;
@@ -191,7 +373,7 @@ void hplus::simple_output()
   cout<<" -> xsec [pb]\t"<<xsec_mssm<<endl;
   
   //BR:
- 	for(int b=0;b<BR_list.size();b++)
+ 	for(unsigned int b=0;b<BR_list.size();b++)
  	 cout<<" -> BR "<<BR_list[b]<<"\t"<<mymodel[m].get_BR(BR_list[b],input_mass,input_tanb)<<endl;
   
   //top->H+b BR:
@@ -240,13 +422,13 @@ double hplus::get_xsec(double mass, double tanb)
  
  double xsec=-1.0;
  
- if(mass>=200 && (energy=="13" && mass<=2000) || (energy=="8" && mass<=1000) )
+ if(mass>=145 && ((energy=="13" && mass<=2000) || (energy=="8" && mass<=1000)) )
  {
- 
+  
   double m1,m2,t1,t2,t3,xsec11,xsec12,xsec21,xsec22,xsec13,xsec23;
   xsec11=xsec12=xsec21=xsec22=xsec13=xsec23=-1;
   
-  for(int m=0;m<xsec_input_mass.size();m++)
+  for(unsigned int m=0;m<xsec_input_mass.size();m++)
   {
    int found_m=0;
    if(xsec_input_mass[m]>=mass && m!=0)
@@ -271,7 +453,7 @@ double hplus::get_xsec(double mass, double tanb)
   //3-point quadratic interpolation:
   if(tanb<=60.0)
   {
-   for(int t=0;t<xsec_input_tanb.size();t++)
+   for(unsigned int t=0;t<xsec_input_tanb.size();t++)
    {
     int found_t=0;
     if(xsec_input_tanb[t]>=tanb && t!=0 && t<xsec_input_tanb.size())
@@ -363,7 +545,7 @@ double hplus::get_xsec_raw_exact(double mass, double tanb)
 
  double xsec=-1.0;
  int found=0;
- for(int m=0;m<xsec_mH.size();m++)
+ for(unsigned int m=0;m<xsec_mH.size();m++)
  {
  	if((int)xsec_mH[m]==(int)mass && (int)(xsec_tanb[m]*10.0)==(int)(tanb*10.0))
   {
@@ -487,7 +669,7 @@ void hplus::vs_tanb(string firstvari)
  
  if(firstvari=="BR")
  {
- 	for(int m=0;m<model_list.size();m++)
+ 	for(unsigned int m=0;m<model_list.size();m++)
  	{
  	 TCanvas* can=new TCanvas("can","can",0,0,600,600);
  	 can->SetFillColor(0);
@@ -495,7 +677,7 @@ void hplus::vs_tanb(string firstvari)
  	 TLegend* leg=new TLegend(0.6,0.6,0.9,0.9);
  	 leg->SetFillStyle(0);
    vector<TGraph*> vector_graphs;
- 	 for(int b=0;b<BR_list.size();b++)
+ 	 for(unsigned int b=0;b<BR_list.size();b++)
  	 {
  	 	string filename="../output/"+firstvari+"_"+model_list[m]+"_"+BR_list[b]+"_mass"+mass_string+".txt";
  	 	fstream out; out.open(filename.c_str(),ios::out);
@@ -538,7 +720,7 @@ void hplus::vs_tanb(string firstvari)
  	 safename="../plots/"+firstvari+"_"+model_list[m]+"_mass"+mass_string+".root";
  	 TFile* file=new TFile(safename.c_str(),"RECREATE");
  	 file->Add(can);
- 	 for(int g=0;g<vector_graphs.size();g++)
+ 	 for(unsigned int g=0;g<vector_graphs.size();g++)
  	  file->Add(vector_graphs[g]);
  	 file->Write();
  	}
@@ -547,7 +729,7 @@ void hplus::vs_tanb(string firstvari)
  
  if(firstvari=="xsec")
  {
- 	for(int m=0;m<model_list.size();m++)
+ 	for(unsigned int m=0;m<model_list.size();m++)
  	{
  	 TCanvas* can=new TCanvas("can","can",0,0,600,600);
  	 can->SetFillColor(0);
@@ -592,7 +774,7 @@ void hplus::vs_tanb(string firstvari)
  
  if(firstvari=="topBR")
  {
- 	for(int m=0;m<model_list.size();m++)
+ 	for(unsigned int m=0;m<model_list.size();m++)
  	{
  	 TCanvas* can=new TCanvas("can","can",0,0,600,600);
  	 can->SetFillColor(0);
@@ -638,7 +820,7 @@ void hplus::vs_tanb(string firstvari)
  
  if(firstvari=="xsecBR")
  {
- 	for(int m=0;m<model_list.size();m++)
+ 	for(unsigned int m=0;m<model_list.size();m++)
  	{
  	 TCanvas* can=new TCanvas("can","can",0,0,600,600);
  	 can->SetFillColor(0);
@@ -647,7 +829,7 @@ void hplus::vs_tanb(string firstvari)
  	 leg->SetFillStyle(0);
    vector<TGraph*> vector_graphs;
    
- 	 for(int b=0;b<BR_list.size();b++)
+ 	 for(unsigned int b=0;b<BR_list.size();b++)
  	 {
  	 	string filename="../output/"+firstvari+"_"+model_list[m]+"_"+BR_list[b]+"_mass"+mass_string+".txt";
  	 	fstream out; out.open(filename.c_str(),ios::out);
@@ -694,7 +876,7 @@ void hplus::vs_tanb(string firstvari)
  	 safename="../plots/"+firstvari+"_"+model_list[m]+"_mass"+mass_string+".root";
  	 TFile* file=new TFile(safename.c_str(),"RECREATE");
  	 file->Add(can);
- 	 for(int g=0;g<vector_graphs.size();g++)
+ 	 for(unsigned int g=0;g<vector_graphs.size();g++)
  	  file->Add(vector_graphs[g]);
  	 file->Write();
  	}
@@ -732,7 +914,7 @@ void hplus::vs_mass(string firstvari)
  
  if(firstvari=="BR")
  {
- 	for(int m=0;m<model_list.size();m++)
+ 	for(unsigned int m=0;m<model_list.size();m++)
  	{
  	 TCanvas* can=new TCanvas("can","can",0,0,600,600);
  	 can->SetFillColor(0);
@@ -740,7 +922,7 @@ void hplus::vs_mass(string firstvari)
  	 TLegend* leg=new TLegend(0.6,0.6,0.9,0.9);
  	 leg->SetFillStyle(0);
    vector<TGraph*> vector_graphs;
- 	 for(int b=0;b<BR_list.size();b++)
+ 	 for(unsigned int b=0;b<BR_list.size();b++)
  	 {
  	 	string filename="../output/"+firstvari+"_"+model_list[m]+"_"+BR_list[b]+"_tanb"+tanb_string+".txt";
  	 	fstream out; out.open(filename.c_str(),ios::out);
@@ -783,7 +965,7 @@ void hplus::vs_mass(string firstvari)
  	 safename="../plots/"+firstvari+"_"+model_list[m]+"_tanb"+tanb_string+".root";
  	 TFile* file=new TFile(safename.c_str(),"RECREATE");
  	 file->Add(can);
- 	 for(int g=0;g<vector_graphs.size();g++)
+ 	 for(unsigned int g=0;g<vector_graphs.size();g++)
  	  file->Add(vector_graphs[g]);
  	 file->Write();
  	}
@@ -792,7 +974,7 @@ void hplus::vs_mass(string firstvari)
  
  if(firstvari=="xsec")
  {
- 	for(int m=0;m<model_list.size();m++)
+ 	for(unsigned int m=0;m<model_list.size();m++)
  	{
  	 TCanvas* can=new TCanvas("can","can",0,0,600,600);
  	 can->SetFillColor(0);
@@ -837,7 +1019,7 @@ void hplus::vs_mass(string firstvari)
  
  if(firstvari=="topBR")
  {
- 	for(int m=0;m<model_list.size();m++)
+ 	for(unsigned int m=0;m<model_list.size();m++)
  	{
  	 TCanvas* can=new TCanvas("can","can",0,0,600,600);
  	 can->SetFillColor(0);
@@ -883,7 +1065,7 @@ void hplus::vs_mass(string firstvari)
  
  if(firstvari=="xsecBR")
  {
- 	for(int m=0;m<model_list.size();m++)
+ 	for(unsigned int m=0;m<model_list.size();m++)
  	{
  	 TCanvas* can=new TCanvas("can","can",0,0,600,600);
  	 can->SetFillColor(0);
@@ -892,7 +1074,7 @@ void hplus::vs_mass(string firstvari)
  	 leg->SetFillStyle(0);
    vector<TGraph*> vector_graphs;
    
- 	 for(int b=0;b<BR_list.size();b++)
+ 	 for(unsigned int b=0;b<BR_list.size();b++)
  	 {
  	 	string filename="../output/"+firstvari+"_"+model_list[m]+"_"+BR_list[b]+"_tanb"+tanb_string+".txt";
  	 	fstream out; out.open(filename.c_str(),ios::out);
@@ -938,7 +1120,7 @@ void hplus::vs_mass(string firstvari)
  	 safename="../plots/"+firstvari+"_"+model_list[m]+"_tanb"+tanb_string+".root";
  	 TFile* file=new TFile(safename.c_str(),"RECREATE");
  	 file->Add(can);
- 	 for(int g=0;g<vector_graphs.size();g++)
+ 	 for(unsigned int g=0;g<vector_graphs.size();g++)
  	  file->Add(vector_graphs[g]);
  	 file->Write();
  	}
@@ -956,21 +1138,19 @@ bool hplus::fexists(string filename)
 }
 
 
-int hplus::exclusions()
+void hplus::exclusions()
 {
- 
- int do_obs=0;
  
  string limitname;
  cout<<"---- Exclusions ----"<<endl;
  cout<<endl;
  cout<<"Your decay mode:"<<endl;
- for(int b=0;b<BR_list.size();b++)
+ for(unsigned int b=0;b<BR_list.size();b++)
  {
   cout<<" ("<<b+1<<") "<<BR_list[b]<<endl;
  }
  int decay=0;
- while(decay<1 || decay > BR_list.size())
+ while(decay<1 || decay > (int)BR_list.size())
  {
   cout<<" Enter number: "; cin>>decay;
  }
@@ -989,110 +1169,108 @@ int hplus::exclusions()
  if(!fexists(filename))
  {
   cout<<"ERROR: Loading "<<filename<<" failed!"<<endl;
-  return 0;
+  return;
  }
  
  cout<<endl;
  
  vector<double> mass;
  vector<double> obs;
- vector<double> exp;
+ vector<double> expected;
  vector<double> sigma2up;
  vector<double> sigma1up;
  vector<double> sigma1dn;
  vector<double> sigma2dn;
  
+ int do_observed=0;
+ int do_expected=0;
+ int do_plus1sigma=0;
+ int do_plus2sigma=0;
+ int do_minus1sigma=0;
+ int do_minus2sigma=0;
+ 
  string line;
  while(getline(file, line))
  {
+  size_t pos_comment = line.find("#");
   
-  string comment="#";
-  size_t found_nocomment = line.find(comment);
-  
-  string obs_string="doobserved";
-  size_t found_obs = line.find(obs_string);
-    
-  if(found_nocomment)
+  if(pos_comment==string::npos)
   {
    
    stringstream linestream(line);
-
-   if(!found_obs)
+   string word1,word2,word3,word4,word5,word6,word7;
+   linestream>>word1>>word2>>word3>>word4>>word5>>word6>>word7;
+   if(word1=="do_observed" && word2=="1")    do_observed=1;
+   if(word1=="do_expected" && word2=="1")    do_expected=1;
+   if(word1=="do_plus1sigma" && word2=="1")  do_plus1sigma=1;
+   if(word1=="do_plus2sigma" && word2=="1")  do_plus2sigma=1;
+   if(word1=="do_minus1sigma" && word2=="1") do_minus1sigma=1;
+   if(word1=="do_minus2sigma" && word2=="1") do_minus2sigma=1;
+   
+   size_t pos_do = word1.find("do_");
+   if(pos_do==string::npos)
    {
-   	string word1,word2;
-    linestream >> word1 >> word2;
-    if(word1=="doobserved" && word2=="1")
-     do_obs=1;
+    //exp +2sigma +1sigma -1sigma -2sigma observed
+    mass.push_back(stod(word1));
+    expected.push_back(stod(word2));
+    sigma2up.push_back(stod(word3));
+    sigma1up.push_back(stod(word4));
+    sigma1dn.push_back(stod(word5));
+    sigma2dn.push_back(stod(word6));
+    obs.push_back(stod(word7));
    }
    
-   if(found_obs)
-   {
-    double this_mass, this_obs, this_exp, this_sigma2up, this_sigma1up, this_sigma1dn, this_sigma2dn;
-    this_mass=this_obs=this_exp=this_sigma2up=this_sigma1up=this_sigma1dn=this_sigma2dn=-1;
-    
-    if(do_obs)  linestream >> this_mass >> this_exp >> this_sigma2up >> this_sigma1up >> this_sigma1dn >> this_sigma2dn  >> this_obs;
-    if(!do_obs) linestream >> this_mass >> this_exp >> this_sigma2up >> this_sigma1up >> this_sigma1dn >> this_sigma2dn;
-    
-    mass.push_back(this_mass);
-    obs.push_back(this_obs);
-    exp.push_back(this_exp);
-    sigma1up.push_back(this_sigma1up);
-    sigma2up.push_back(this_sigma2up);
-    sigma1dn.push_back(this_sigma1dn);
-    sigma2dn.push_back(this_sigma2dn);
-   }
-   
-  }
+  } //line does not start with a comment symbol
   
  } // while file
+ 
+ for(unsigned int d=0;d<mass.size();d++)
+  cout<<"found the following masses: "<<mass[d]<<endl;
  
  //construct the limit objects:
  limit thislimit_obs;
  thislimit_obs.set_name("observed");
  thislimit_obs.init_names();
- for(int i=0;i<obs.size();i++)
- {
-  thislimit_obs.add_val(obs[i]);
- }
- if(do_obs) mylimit.push_back(thislimit_obs);
+ for(unsigned int i=0;i<obs.size();i++)  thislimit_obs.add_val(obs[i]);
+ if(do_observed) mylimit.push_back(thislimit_obs);
  
  limit thislimit_exp;
  thislimit_exp.set_name("expected");
  thislimit_exp.init_names();
- for(int i=0;i<exp.size();i++) thislimit_exp.add_val(exp[i]);
- mylimit.push_back(thislimit_exp);
+ for(unsigned int i=0;i<expected.size();i++) thislimit_exp.add_val(expected[i]);
+ if(do_expected) mylimit.push_back(thislimit_exp);
  
  limit thislimit_2up;
  thislimit_2up.set_name("sigma2up");
  thislimit_2up.init_names();
- for(int i=0;i<sigma2up.size();i++) thislimit_2up.add_val(sigma2up[i]);
- mylimit.push_back(thislimit_2up);
+ for(unsigned int i=0;i<sigma2up.size();i++) thislimit_2up.add_val(sigma2up[i]);
+ if(do_plus2sigma) mylimit.push_back(thislimit_2up);
  
  limit thislimit_1up;
  thislimit_1up.set_name("sigma1up");
  thislimit_1up.init_names();
- for(int i=0;i<sigma1up.size();i++) thislimit_1up.add_val(sigma1up[i]);
- mylimit.push_back(thislimit_1up);
+ for(unsigned int i=0;i<sigma1up.size();i++) thislimit_1up.add_val(sigma1up[i]);
+ if(do_plus1sigma) mylimit.push_back(thislimit_1up);
  
  limit thislimit_1dn;
  thislimit_1dn.set_name("sigma1dn");
  thislimit_1dn.init_names();
- for(int i=0;i<sigma1dn.size();i++) thislimit_1dn.add_val(sigma1dn[i]);
- mylimit.push_back(thislimit_1dn);
+ for(unsigned int i=0;i<sigma1dn.size();i++) thislimit_1dn.add_val(sigma1dn[i]);
+ if(do_minus1sigma) mylimit.push_back(thislimit_1dn);
  
  limit thislimit_2dn;
  thislimit_2dn.set_name("sigma2dn");
  thislimit_2dn.init_names();
- for(int i=0;i<sigma2dn.size();i++) thislimit_2dn.add_val(sigma2dn[i]);
- mylimit.push_back(thislimit_2dn);
+ for(unsigned int i=0;i<sigma2dn.size();i++) thislimit_2dn.add_val(sigma2dn[i]);
+ if(do_minus2sigma) mylimit.push_back(thislimit_2dn);
  
- for(int m=0;m<model_list.size();m++)
+ for(unsigned int m=0;m<model_list.size();m++)
  {
   
-  for(int l=0;l<mylimit.size();l++)
+  for(unsigned int l=0;l<mylimit.size();l++)
   {
    
-   for(int i=0;i<mass.size();i++)
+   for(unsigned int i=0;i<mass.size();i++)
    {
  	  
  	  cout<<endl;
@@ -1118,7 +1296,7 @@ int hplus::exclusions()
   string filename="../output/exclusion_"+limitname+"_"+model_list[m]+"_"+BR_list[decay]+".root";
   cout<<"saving graphs into "<<filename<<endl;
   TFile* file=new TFile(filename.c_str(),"RECREATE");
-  for(int l=0;l<mylimit.size();l++)
+  for(unsigned int l=0;l<mylimit.size();l++)
   {
    file->Add(mylimit[l].graph_up);
    file->Add(mylimit[l].graph_dn);
@@ -1127,7 +1305,7 @@ int hplus::exclusions()
   
  } //Model
  
- return 1;
+ return;
  
 }
 
@@ -1140,7 +1318,7 @@ void hplus::get_crossings(int model_index, int decay_index, double mass, double 
  
  //Low mass does not work yet!!!
  int LM=0;
- if(mass<200)
+ if(mass<145)
  {
   LM=1;
   cout<<"Low mass exclusions do not work yet. Exiting Program."<<endl;
@@ -1176,27 +1354,27 @@ void hplus::get_crossings(int model_index, int decay_index, double mass, double 
  int found_dn=0;
  int write_rfile=0;
  TGraph* g_ratio=new TGraph(); g_ratio->SetName("g_ratio");
- for(int t=0;t<tanb_grid.size();t++)
+ for(unsigned int t=0;t<tanb_grid.size();t++)
  {
  	
  	double BR=mymodel[model_index].get_BR(BR_list[decay_index],mass,tanb_grid[t]);
   
   double prod;
-  if(mass>199)
+  if(mass>145)
   {
    prod=BR*get_xsec_mssm(mass,tanb_grid[t],model_index);
   }
-  else
+  else //LM
   {
    prod=BR*mymodel[model_index].get_topBR(mass,tanb_grid[t]);
-   //cout<<"tanb="<<tanb_grid[t]<<" BR "<<BR<<" topBR "<<mymodel[model_index].get_topBR(mass,tanb_grid[t])<<" prod "<<prod<<endl;
+   cout<<"tanb="<<tanb_grid[t]<<" BR "<<BR<<" topBR "<<mymodel[model_index].get_topBR(mass,tanb_grid[t])<<" prod "<<prod<<endl;
   }
   
   double ratio=9999999;
   if(t>0) ratio=prev_ratio;
   if(prod>0) ratio=limit/prod;
     
-  //cout<<"t "<<t<<" tanb "<<tanb_grid[t]<<" prod "<<prod<<" ratio "<<ratio<<endl;
+  cout<<"t "<<t<<" tanb "<<tanb_grid[t]<<" prod "<<prod<<" ratio "<<ratio<<endl;
   
   g_ratio->SetPoint(t,tanb_grid[t],ratio);
   if(t>0)
@@ -1236,7 +1414,7 @@ void hplus::get_crossings(int model_index, int decay_index, double mass, double 
  if(!found_up)
  {
  	//the script requires that for every mas spoint we find an up and a down crossing
- 	//the treatment now will dependon the decay and the mass
+ 	//the treatment now will depend on the decay and the mass
  	
  	if(BR_list[decay_index]=="taunu")
  	{
@@ -1255,7 +1433,7 @@ void hplus::get_crossings(int model_index, int decay_index, double mass, double 
  	 
  	 TGraph *graph=new TGraph(); graph->SetName("graph");
  	 int p=0;
- 	 for(int t=0;t<tanb_grid.size();t++)
+ 	 for(unsigned int t=0;t<tanb_grid.size();t++)
  	 {
  	  if(tanb_grid[t]<1.0)
  	  {
@@ -1287,7 +1465,7 @@ void hplus::get_crossings(int model_index, int decay_index, double mass, double 
     file->Write();
    }
    
-   double a,b,c,d,e;
+   double a,b,c,d;
    a=fit->GetParameter(0);
    b=fit->GetParameter(1);
    c=fit->GetParameter(2);
@@ -1295,7 +1473,7 @@ void hplus::get_crossings(int model_index, int decay_index, double mass, double 
    
    double result=-1;
    double prev_val;
-   int found_extrap_up=0;
+   //int found_extrap_up=0;
    int count=0;
    int i=0;
    double tb=0.6;
@@ -1309,7 +1487,7 @@ void hplus::get_crossings(int model_index, int decay_index, double mass, double 
      {
       cout<<"prev_val "<<prev_val<<" val "<<val<<" tb "<<tb<<endl;
       result=linear(prev_val,val,tb+0.01,tb,1.0);
-      found_extrap_up=1;
+      //found_extrap_up=1;
       tb=-1;
      }
     }
@@ -1341,10 +1519,9 @@ void hplus::get_crossings(int model_index, int decay_index, double mass, double 
    cout<<"Attention: No dn crossing for mass = "<<mass<<" GeV found. Attempting extrapolation to high tanb."<<endl;
  	 
  	 TGraph *graph2=new TGraph(); graph2->SetName("graph2");
- 	 int p=0;
  	 //find the point when prod becomes 0 (thats when the model is no longer well defined)
  	 int tb_negprod=tanb_grid.size()-1;
- 	 for(int t=0;t<tanb_grid.size();t++)
+ 	 for(unsigned int t=0;t<tanb_grid.size();t++)
  	 {
     double prod;
     double BR=mymodel[model_index].get_BR(BR_list[decay_index],mass,tanb_grid[t]);

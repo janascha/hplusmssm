@@ -1,6 +1,7 @@
 #----------------------------#
 # Hplus MSSM Interface Setup #
 #----------------------------#
+model 0 hmssm
 model 0 mhmaxup
 model 0 mhmodp
 model 1 mhmodm
@@ -10,7 +11,7 @@ model 0 lightstop
 model 0 lightstop-up
 model 0 tauphobic
 #------------------------------
-BR 0 tb
+BR 1 tb
 BR 1 taunu
 BR 0 cs
 BR 0 susy
@@ -26,5 +27,8 @@ BR 0 hW
 BR 0 HW
 BR 0 AW
 #------------------------------
-lhc_energy 8 TeV    # 8 or 13
+lhc_energy 13 TeV    # 8 or 13
 #------------------------------
+Scale_Intermediate 0     # if set to 1, the cross sections in the intermediate range will be scaled to match the nominal values at 200 GeV
+#------------------------------
+
