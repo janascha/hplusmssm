@@ -11,3 +11,8 @@ Author: jana.schaarschmidt@cern.ch
 
 It is steered from code/setup.txt
 
+
+The active developement of this code has moved to GitLab:
+
+https://gitlab.cern.ch/schaarsc/hplusmssm
+
